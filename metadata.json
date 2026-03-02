@@ -1,0 +1,5 @@
+{
+  "name": "PraiseRadioNG",
+  "description": "An uplifting, community-focused online radio station experience inspired by Family Radio, featuring curated programs, daily verses, and AI-powered insights.",
+  "requestFramePermissions": ["microphone"]
+}
