@@ -4,10 +4,10 @@ export const STATIONS: RadioStation[] = [
   {
     id: "praiseradio-live",
     name: "PraiseRadioNG Live",
-    url: "https://stream.zeno.fm/9xwv2tuzoqsuv",
-    genre: "Variety / Live",
+    url: "https://stream.zeno.fm/9xwv2tuzoqsuv.mp3",
+    genre: "Gospel / Live",
     description: "The official live broadcast of PraiseRadioNG.",
-    cover: "https://picsum.photos/seed/praise/400/400",
+    cover: "/logo.png",
   },
   {
     id: "lofi",

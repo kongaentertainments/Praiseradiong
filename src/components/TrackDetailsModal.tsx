@@ -12,9 +12,10 @@ interface TrackDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   station: RadioStation | null;
+  metadata: { artist: string; title: string } | null;
 }
 
-export default function TrackDetailsModal({ isOpen, onClose, station }: TrackDetailsModalProps) {
+export default function TrackDetailsModal({ isOpen, onClose, station, metadata }: TrackDetailsModalProps) {
   const [insight, setInsight] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [currentProgram, setCurrentProgram] = useState<Program | null>(null);
@@ -47,17 +48,27 @@ export default function TrackDetailsModal({ isOpen, onClose, station }: TrackDet
     const fetchInsight = async () => {
       setLoading(true);
       try {
-        const prompt = currentProgram 
-          ? `You are an expert radio host for "PraiseRadioNG". 
+        let prompt = "";
+        if (metadata) {
+          prompt = `You are an expert radio host for "PraiseRadioNG". 
+             The current song playing is "${metadata.title}" by ${metadata.artist}.
+             The station is playing ${station?.genre} music.
+             Provide a deep, engaging insight (3-4 sentences) about this specific song, its message, or the artist's impact on faith-based music. 
+             If you don't know the specific song, talk about the themes of ${station?.genre} music that this song likely represents.
+             Make it feel personal and uplifting.`;
+        } else if (currentProgram) {
+          prompt = `You are an expert radio host for "PraiseRadioNG". 
              The current program is "${currentProgram.title}" hosted by ${currentProgram.host}.
              Description: ${currentProgram.description}.
-             The station is playing ${station.genre} music.
+             The station is playing ${station?.genre} music.
              Provide a deep, engaging insight (3-4 sentences) about this program or the spiritual significance of the themes it might cover. 
-             Make it feel personal and uplifting.`
-          : `You are an expert radio host for "PraiseRadioNG". 
-             The current station is "${station.name}" playing "${station.genre}" music.
+             Make it feel personal and uplifting.`;
+        } else {
+          prompt = `You are an expert radio host for "PraiseRadioNG". 
+             The current station is "${station?.name}" playing "${station?.genre}" music.
              Provide a deep, engaging insight (3-4 sentences) about this genre of faith-based music and its impact on the listener's journey. 
              Make it feel personal and uplifting.`;
+        }
 
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
@@ -106,8 +117,12 @@ export default function TrackDetailsModal({ isOpen, onClose, station }: TrackDet
                   <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                   <span className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Now Broadcasting</span>
                 </div>
-                <h2 className="text-2xl font-black text-white leading-tight">{station?.name}</h2>
-                <p className="text-blue-200 text-sm font-medium">{station?.genre}</p>
+                <h2 className="text-2xl font-black text-white leading-tight">
+                  {metadata ? metadata.title : station?.name}
+                </h2>
+                <p className="text-blue-200 text-sm font-medium">
+                  {metadata ? metadata.artist : station?.genre}
+                </p>
               </div>
             </div>
 

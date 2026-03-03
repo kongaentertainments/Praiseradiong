@@ -20,7 +20,9 @@ import {
   ChevronRight,
   Calendar,
   Mic2,
-  HeartHandshake
+  HeartHandshake,
+  Podcast,
+  RefreshCw
 } from "lucide-react";
 import { STATIONS } from "./constants";
 import { RadioStation, PlayerState } from "./types";
@@ -30,10 +32,11 @@ import RequestModal from "./components/RequestModal";
 import ShareModal from "./components/ShareModal";
 import ProgramSchedule from "./components/ProgramSchedule";
 import TrackDetailsModal from "./components/TrackDetailsModal";
+import DonationModal from "./components/DonationModal";
 import { cn } from "./lib/utils";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"home" | "schedule" | "about" | "contact" | "prayer">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "schedule" | "about" | "contact" | "prayer" | "podcasts">("home");
   const [state, setState] = useState<PlayerState>({
     currentStation: STATIONS[0],
     isPlaying: false,
@@ -44,8 +47,10 @@ export default function App() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
+  const [metadata, setMetadata] = useState<{ artist: string; title: string } | null>(null);
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem("praiseradio-favorites");
     return saved ? JSON.parse(saved) : [];
@@ -54,26 +59,56 @@ export default function App() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}`);
-    wsRef.current = ws;
+    const urlParams = new URLSearchParams(window.location.search);
+    const donation = urlParams.get("donation");
+    if (donation === "success") {
+      alert("Thank you for your generous donation! Your support means the world to us.");
+      // Clear the URL parameter
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (donation === "cancel") {
+      alert("Donation cancelled. If you have any questions, please feel free to contact us.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "count" && data.stationId === state.currentStation?.id) {
-        setListenerCount(data.count);
-      }
-    };
+  useEffect(() => {
+    try {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}`);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      if (state.currentStation) {
-        ws.send(JSON.stringify({ type: "join", stationId: state.currentStation.id }));
-      }
-    };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "count" && data.stationId === state.currentStation?.id) {
+            setListenerCount(data.count);
+          } else if (data.type === "metadata" && data.stationId === state.currentStation?.id) {
+            setMetadata(data.metadata);
+          }
+        } catch (e) {
+          console.error("WS message parse error:", e);
+        }
+      };
 
-    return () => {
-      ws.close();
-    };
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        if (state.currentStation) {
+          ws.send(JSON.stringify({ type: "join", stationId: state.currentStation.id }));
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      return () => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close();
+        }
+      };
+    } catch (e) {
+      console.error("WebSocket initialization failed:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -120,6 +155,15 @@ export default function App() {
     setState(prev => ({ ...prev, isPlaying: !prev.isPlaying }));
   };
 
+  const handleRefresh = () => {
+    if (audioRef.current) {
+      audioRef.current.load();
+      if (state.isPlaying) {
+        audioRef.current.play().catch(err => console.error("Refresh play failed:", err));
+      }
+    }
+  };
+
   const handleStationSelect = (station: RadioStation) => {
     setState(prev => ({
       ...prev,
@@ -145,8 +189,7 @@ export default function App() {
       <audio 
         ref={audioRef} 
         src={state.currentStation?.url} 
-        crossOrigin="anonymous"
-        preload="auto"
+        preload="none"
         onPlay={() => {
           setState(prev => ({ ...prev, isPlaying: true }));
           setIsBuffering(false);
@@ -199,10 +242,13 @@ export default function App() {
           <button onClick={() => setActiveTab("about")} className="hover:text-blue-300 transition-colors">About Us</button>
         </div>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-blue-300 transition-colors flex items-center gap-1">
+          <button 
+            onClick={() => setIsDonationModalOpen(true)} 
+            className="hover:text-blue-300 transition-colors flex items-center gap-1"
+          >
             <HeartHandshake size={12} />
             Give Now
-          </a>
+          </button>
         </div>
       </div>
 
@@ -211,12 +257,24 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#0056b3] rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Radio className="text-white" size={24} />
-              </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tight text-[#003366]">PraiseRadioNG</h1>
-                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Family & Faith</p>
+              <img 
+                src="/logo.png" 
+                alt="PraiseRadio Logo" 
+                className="h-14 w-auto object-contain transition-all hover:scale-105"
+                onError={(e) => {
+                  // Fallback if logo.png is not found
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#FFC107] rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/20">
+                  <Radio className="text-black" size={24} />
+                </div>
+                <div>
+                  <h1 className="text-xl font-black tracking-tight text-[#003366]">PraiseRadioNG</h1>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Family & Faith</p>
+                </div>
               </div>
             </div>
 
@@ -238,6 +296,15 @@ export default function App() {
                 )}
               >
                 Schedule
+              </button>
+              <button 
+                onClick={() => setActiveTab("podcasts")}
+                className={cn(
+                  "hover:text-blue-600 transition-colors border-b-2 py-1",
+                  activeTab === "podcasts" ? "border-blue-600 text-blue-600" : "border-transparent"
+                )}
+              >
+                Podcasts
               </button>
               <button 
                 onClick={() => setActiveTab("prayer")}
@@ -294,16 +361,28 @@ export default function App() {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-[#0056b3] rounded-lg flex items-center justify-center">
-              <Radio className="text-white" size={24} />
+            <img 
+              src="/logo.png" 
+              alt="PraiseRadio Logo" 
+              className="h-16 w-auto object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#FFC107] rounded-lg flex items-center justify-center">
+                <Radio className="text-black" size={24} />
+              </div>
+              <h2 className="text-xl font-black text-[#003366]">PraiseRadio</h2>
             </div>
-            <h2 className="text-xl font-black text-[#003366]">PraiseRadio</h2>
           </div>
 
           <nav className="flex flex-col gap-6">
             {[
               { id: "home", label: "Home" },
               { id: "schedule", label: "Schedule" },
+              { id: "podcasts", label: "Podcasts" },
               { id: "prayer", label: "Pray With Us" },
               { id: "about", label: "About" },
               { id: "contact", label: "Contact" }
@@ -368,10 +447,10 @@ export default function App() {
                       <p className="text-lg text-blue-100 mb-8 font-medium max-w-xl">Join us every weekday for uplifting messages and music that strengthens your faith and community.</p>
                       <div className="flex gap-4">
                         <button 
-                          onClick={() => setActiveTab("prayer")}
+                          onClick={() => setIsDonationModalOpen(true)}
                           className="px-8 py-3 bg-white text-[#003366] font-bold rounded-full hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-lg"
                         >
-                          Pray With Us
+                          Give Now
                           <HeartHandshake size={18} />
                         </button>
                         <button 
@@ -423,7 +502,7 @@ export default function App() {
                     <div className="bg-[#003366] p-8 rounded-2xl shadow-lg text-white relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 blur-3xl rounded-full" />
                       <div className="relative z-10">
-                        <AIHost station={state.currentStation} />
+                        <AIHost station={state.currentStation} metadata={metadata} />
                       </div>
                     </div>
                   </div>
@@ -439,6 +518,29 @@ export default function App() {
                 className="p-8 lg:p-12"
               >
                 <ProgramSchedule />
+              </motion.div>
+            ) : activeTab === "podcasts" ? (
+              <motion.div
+                key="podcasts"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+                className="p-8 lg:p-12 flex flex-col items-center justify-center min-h-[400px] text-center"
+              >
+                <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-8 animate-pulse">
+                  <Podcast size={48} />
+                </div>
+                <h2 className="text-4xl font-black text-[#003366] mb-4">Podcasts Coming Soon</h2>
+                <p className="text-lg text-slate-500 max-w-md mx-auto">
+                  We're currently curating the best faith-based conversations and messages for you. Stay tuned for our upcoming podcast series!
+                </p>
+                <button 
+                  onClick={() => setActiveTab("home")}
+                  className="mt-8 px-8 py-3 bg-[#003366] text-white font-bold rounded-full hover:bg-[#002244] transition-colors"
+                >
+                  Back to Radio
+                </button>
               </motion.div>
             ) : activeTab === "prayer" ? (
               <motion.div
@@ -479,7 +581,7 @@ export default function App() {
                       <div className="space-y-4">
                         <div className="p-4 bg-white rounded-xl border border-slate-200">
                           <p className="text-sm text-slate-600 italic">"Praying for strength and healing for my family during this difficult season."</p>
-                          <p className="text-[10px] font-bold text-blue-600 mt-2 uppercase tracking-widest">— Anonymous</p>
+                          <p className="text-[10px] font-bold text-blue-600 mt-2 uppercase tracking-widest">— Ayo Thomas</p>
                         </div>
                         <div className="p-4 bg-white rounded-xl border border-slate-200">
                           <p className="text-sm text-slate-600 italic">"Thankful for a successful surgery and the peace that surpasses all understanding."</p>
@@ -587,11 +689,14 @@ export default function App() {
             className="flex items-center gap-4 w-full md:w-1/3 cursor-pointer group"
             onClick={() => setIsDetailsModalOpen(true)}
           >
-            <div className="w-14 h-14 rounded-lg overflow-hidden shadow-md flex-shrink-0 relative">
+            <div className="w-14 h-14 rounded-lg overflow-hidden shadow-md flex-shrink-0 relative bg-white flex items-center justify-center p-1">
               <img 
                 src={state.currentStation?.cover} 
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
                 alt="Station Cover"
+                onError={(e) => {
+                  e.currentTarget.src = "https://picsum.photos/seed/radio/400/400";
+                }}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                 <Info className="text-white opacity-0 group-hover:opacity-100 transition-opacity" size={20} />
@@ -603,8 +708,12 @@ export default function App() {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Live</span>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-2">{listenerCount} Listeners</span>
               </div>
-              <h3 className="font-bold text-[#003366] truncate group-hover:text-blue-600 transition-colors">{state.currentStation?.name}</h3>
-              <p className="text-xs text-slate-500 truncate">{state.currentStation?.genre}</p>
+              <h3 className="font-bold text-[#003366] truncate group-hover:text-blue-600 transition-colors">
+                {metadata ? metadata.title : state.currentStation?.name}
+              </h3>
+              <p className="text-xs text-slate-500 truncate">
+                {metadata ? metadata.artist : state.currentStation?.genre}
+              </p>
             </div>
           </div>
 
@@ -612,8 +721,15 @@ export default function App() {
           <div className="flex flex-col items-center gap-2 w-full md:w-1/3">
             <div className="flex items-center gap-8">
               <button 
+                onClick={handleRefresh}
+                className="p-2 text-slate-400 hover:text-[#003366] transition-colors"
+                title="Refresh Stream"
+              >
+                <RefreshCw size={18} className={cn(isBuffering && "animate-spin")} />
+              </button>
+              <button 
                 onClick={togglePlay}
-                className="w-12 h-12 rounded-full bg-[#0056b3] text-white flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                className="w-12 h-12 rounded-full bg-[#FFC107] text-black flex items-center justify-center hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-yellow-500/20 disabled:opacity-50"
                 disabled={!state.currentStation}
               >
                 {isBuffering ? (
@@ -684,6 +800,12 @@ export default function App() {
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         station={state.currentStation}
+        metadata={metadata}
+      />
+
+      <DonationModal
+        isOpen={isDonationModalOpen}
+        onClose={() => setIsDonationModalOpen(false)}
       />
     </div>
   );

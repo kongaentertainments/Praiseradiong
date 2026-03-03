@@ -7,7 +7,7 @@ import Markdown from "react-markdown";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export default function AIHost({ station }: { station: RadioStation | null }) {
+export default function AIHost({ station, metadata }: { station: RadioStation | null; metadata: { artist: string; title: string } | null }) {
   const [insight, setInsight] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -17,12 +17,20 @@ export default function AIHost({ station }: { station: RadioStation | null }) {
     const fetchInsight = async () => {
       setLoading(true);
       try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `You are a cool, knowledgeable radio host for "PraiseRadioNG". 
+        const prompt = metadata 
+          ? `You are a cool, knowledgeable radio host for "PraiseRadioNG". 
+          The current song is "${metadata.title}" by ${metadata.artist}.
+          The station is playing "${station.genre}" music.
+          Give a short, engaging 2-sentence insight or fun fact about this song or artist. 
+          Keep it punchy and atmospheric.`
+          : `You are a cool, knowledgeable radio host for "PraiseRadioNG". 
           The current station is "${station.name}" playing "${station.genre}" music.
           Give a short, engaging 2-sentence insight or fun fact about this genre or the vibe of this station. 
-          Keep it punchy and atmospheric.`,
+          Keep it punchy and atmospheric.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
         });
         setInsight(response.text || "");
       } catch (error) {
