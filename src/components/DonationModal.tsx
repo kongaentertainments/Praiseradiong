@@ -5,13 +5,16 @@ import { useState, useEffect } from "react";
 interface DonationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: (message: string) => void;
 }
 
-export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
+export default function DonationModal({ isOpen, onClose, onSuccess }: DonationModalProps) {
   const [amount, setAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [configStatus, setConfigStatus] = useState<{ stripeConfigured: boolean; stripeKeyValid: boolean } | null>(null);
+
+  const isDev = process.env.NODE_ENV !== 'production';
 
   // Check config on mount
   useEffect(() => {
@@ -174,25 +177,55 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
                 </div>
               )}
 
-              <button
-                onClick={handleDonate}
-                disabled={loading || amount <= 0 || (configStatus !== null && !configStatus.stripeConfigured)}
-                className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {loading ? (
+              <div className="space-y-3">
+                <button
+                  onClick={handleDonate}
+                  disabled={loading || amount <= 0 || (configStatus !== null && !configStatus.stripeConfigured)}
+                  className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Processing...
+                    </>
+                  ) : !configStatus?.stripeConfigured ? (
+                    "Setup Required"
+                  ) : (
+                    <>
+                      Donate Now
+                      <Heart size={16} />
+                    </>
+                  )}
+                </button>
+
+                {configStatus && !configStatus.stripeConfigured && (
                   <>
-                    <Loader2 className="animate-spin" size={18} />
-                    Processing...
-                  </>
-                ) : !configStatus?.stripeConfigured ? (
-                  "Setup Required"
-                ) : (
-                  <>
-                    Donate Now
-                    <Heart size={16} />
+                    <a
+                      href={`mailto:hello@praiseradio.ng?subject=Donation of $${amount}&body=I would like to donate $${amount} to PraiseRadioNG. Please provide bank details.`}
+                      className="w-full py-4 bg-slate-100 text-[#003366] rounded-2xl font-bold uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm"
+                    >
+                      Contact for Details
+                      <ChevronRight size={16} />
+                    </a>
+                    
+                    {isDev && (
+                      <button
+                        onClick={() => {
+                          setLoading(true);
+                          setTimeout(() => {
+                            setLoading(false);
+                            onSuccess?.(`Thank you for your simulated donation of $${amount}!`);
+                            onClose();
+                          }, 1000);
+                        }}
+                        className="w-full py-2 text-[10px] text-slate-400 hover:text-blue-500 transition-colors uppercase font-bold tracking-widest"
+                      >
+                        [Dev] Simulate Success
+                      </button>
+                    )}
                   </>
                 )}
-              </button>
+              </div>
               
               <p className="text-[10px] text-center text-slate-400 uppercase tracking-wider">
                 Secure payment powered by Stripe

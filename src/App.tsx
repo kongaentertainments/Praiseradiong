@@ -848,6 +848,7 @@ export default function App() {
       <DonationModal
         isOpen={isDonationModalOpen}
         onClose={() => setIsDonationModalOpen(false)}
+        onSuccess={(msg) => setNotification({ type: "success", message: msg })}
       />
 
       {/* Notification Toast */}
