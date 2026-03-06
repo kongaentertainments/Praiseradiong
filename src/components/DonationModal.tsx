@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { X, Heart, DollarSign, Loader2 } from "lucide-react";
+import { X, Heart, DollarSign, Loader2, Radio, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface DonationModalProps {
@@ -138,9 +138,32 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
               )}
 
               {configStatus && !configStatus.stripeConfigured && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-                  <p className="font-bold mb-1">⚠️ Stripe Not Configured</p>
-                  <p>Please add <strong>STRIPE_SECRET_KEY</strong> to your Environment Variables in AI Studio settings.</p>
+                <div className="space-y-4">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                    <p className="font-bold mb-1">⚠️ Stripe Not Configured</p>
+                    <p className="mb-2">To enable automated donations, add <strong>STRIPE_SECRET_KEY</strong> to your environment variables.</p>
+                    <ul className="list-disc list-inside space-y-1 opacity-80">
+                      <li>On Netlify: Site Settings &gt; Environment variables</li>
+                      <li>In AI Studio: Settings &gt; Environment Variables</li>
+                    </ul>
+                  </div>
+
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <h3 className="text-sm font-bold text-[#003366] mb-3 flex items-center gap-2">
+                      <Radio size={16} className="text-blue-600" />
+                      Other Ways to Support
+                    </h3>
+                    <p className="text-xs text-slate-500 mb-4">You can still support our ministry through direct contact or other platforms.</p>
+                    <div className="space-y-2">
+                      <a 
+                        href="mailto:hello@praiseradio.ng?subject=Donation Inquiry" 
+                        className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-[#003366] hover:border-blue-300 transition-all"
+                      >
+                        Contact for Bank Details
+                        <ChevronRight size={14} />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               )}
 
