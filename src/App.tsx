@@ -319,24 +319,12 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <div className="flex items-center gap-3">
-              <img 
-                src="/logo.png" 
-                alt="PraiseRadio Logo" 
-                className="h-14 w-auto object-contain transition-all hover:scale-105"
-                onError={(e) => {
-                  // Fallback if logo.png is not found
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
-              <div className="hidden flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#FFC107] rounded-lg flex items-center justify-center shadow-lg shadow-yellow-500/20">
-                  <Radio className="text-black" size={24} />
-                </div>
-                <div>
-                  <h1 className="text-xl font-black tracking-tight text-[#003366]">PraiseRadioNG</h1>
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Family & Faith</p>
-                </div>
+              <div className="h-12 w-12 bg-[#003366] rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
+                <Radio size={24} />
+              </div>
+              <div>
+                <h1 className="text-xl font-black tracking-tight text-[#003366]">PraiseRadioNG</h1>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Family & Faith</p>
               </div>
             </div>
 
@@ -423,20 +411,12 @@ export default function App() {
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex items-center gap-3 mb-12">
-            <img 
-              src="/logo.png" 
-              alt="PraiseRadio Logo" 
-              className="h-16 w-auto object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-              }}
-            />
-            <div className="hidden flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#FFC107] rounded-lg flex items-center justify-center">
-                <Radio className="text-black" size={24} />
-              </div>
+            <div className="h-12 w-12 bg-[#003366] rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
+              <Radio size={24} />
+            </div>
+            <div>
               <h2 className="text-xl font-black text-[#003366]">PraiseRadio</h2>
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Family & Faith</p>
             </div>
           </div>
 

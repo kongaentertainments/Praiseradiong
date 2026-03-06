@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, Loader2 } from "lucide-react";
 import Markdown from "react-markdown";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 export default function AIHost({ station, metadata }: { station: RadioStation | null; metadata: { artist: string; title: string } | null }) {
   const [insight, setInsight] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -17,6 +15,12 @@ export default function AIHost({ station, metadata }: { station: RadioStation | 
     const fetchInsight = async () => {
       setLoading(true);
       try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error("API Key missing");
+        }
+        const ai = new GoogleGenAI({ apiKey });
+        
         const prompt = metadata 
           ? `You are a cool, knowledgeable radio host for "PraiseRadioNG". 
           The current song is "${metadata.title}" by ${metadata.artist}.

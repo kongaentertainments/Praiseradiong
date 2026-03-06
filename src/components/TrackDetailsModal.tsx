@@ -6,8 +6,6 @@ import { GoogleGenAI } from "@google/genai";
 import Markdown from "react-markdown";
 import { SCHEDULE } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 interface TrackDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,6 +46,12 @@ export default function TrackDetailsModal({ isOpen, onClose, station, metadata }
     const fetchInsight = async () => {
       setLoading(true);
       try {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error("API Key missing");
+        }
+        const ai = new GoogleGenAI({ apiKey });
+
         let prompt = "";
         if (metadata) {
           prompt = `You are an expert radio host for "PraiseRadioNG". 

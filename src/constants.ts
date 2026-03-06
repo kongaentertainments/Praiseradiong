@@ -7,7 +7,7 @@ export const STATIONS: RadioStation[] = [
     url: "https://stream.zeno.fm/9xwv2tuzoqsuv.mp3",
     genre: "Gospel / Live",
     description: "The official live broadcast of PraiseRadioNG.",
-    cover: "/logo.png",
+    cover: "https://picsum.photos/seed/praise/400/400",
   },
   {
     id: "lofi",
