@@ -1,19 +1,31 @@
 import { motion } from "motion/react";
 
-export default function Visualizer({ isPlaying, height = 32 }: { isPlaying: boolean, height?: number }) {
+interface VisualizerProps {
+  isPlaying: boolean;
+  height?: number;
+}
+
+export default function Visualizer({ isPlaying, height = 16 }: VisualizerProps) {
+  const bars = Array.from({ length: 12 });
+
   return (
-    <div className="flex items-end justify-center gap-1 w-full" style={{ height: `${height}px` }}>
-      {[...Array(20)].map((_, i) => (
+    <div className="flex items-end gap-[2px] px-2" style={{ height: `${height}px` }}>
+      {bars.map((_, i) => (
         <motion.div
           key={i}
-          className="w-1 bg-blue-500 rounded-full"
+          className="w-[2px] bg-blue-400 rounded-full"
           animate={{
-            height: isPlaying ? [height * 0.1, height * 0.5, height * 0.2, height * 0.8, height * 0.3, height, height * 0.4, height * 0.1] : 4,
+            height: isPlaying 
+              ? [
+                  `${Math.random() * 40 + 20}%`,
+                  `${Math.random() * 80 + 20}%`,
+                  `${Math.random() * 40 + 20}%`
+                ] 
+              : "20%"
           }}
           transition={{
-            duration: 1.5,
+            duration: isPlaying ? 0.5 + Math.random() * 0.5 : 0.2,
             repeat: Infinity,
-            delay: i * 0.05,
             ease: "easeInOut",
           }}
         />

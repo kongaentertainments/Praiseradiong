@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { X, Heart, DollarSign, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface DonationModalProps {
   isOpen: boolean;
@@ -11,6 +11,15 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
   const [amount, setAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [configStatus, setConfigStatus] = useState<{ stripeConfigured: boolean; stripeKeyValid: boolean } | null>(null);
+
+  // Check config on mount
+  useEffect(() => {
+    fetch("/api/config-status")
+      .then(res => res.json())
+      .then(data => setConfigStatus(data))
+      .catch(() => setConfigStatus({ stripeConfigured: false, stripeKeyValid: false }));
+  }, []);
 
   const handleDonate = async () => {
     setLoading(true);
@@ -27,17 +36,29 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
 
       if (!response.ok) {
         const data = await response.json();
+        console.error("Server error response:", data);
         throw new Error(data.error || "Failed to create checkout session");
       }
 
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
+      const data = await response.json();
+      console.log("Checkout session created successfully:", data);
+      
+      if (data.url) {
+        // In the AI Studio iframe environment, we must open the Stripe URL in a new window/tab
+        // because Stripe Checkout cannot be loaded inside an iframe (X-Frame-Options: DENY)
+        const stripeWindow = window.open(data.url, "_blank");
+        
+        if (!stripeWindow) {
+          throw new Error("Popup blocked! Please allow popups for this site to complete your donation.");
+        }
+        
+        // Close the modal after opening the checkout page
+        onClose();
       } else {
-        throw new Error("Failed to get checkout URL");
+        throw new Error("Stripe did not return a checkout URL. Please check your Stripe dashboard configuration.");
       }
     } catch (err: any) {
-      console.error("Donation error:", err);
+      console.error("Donation error:", err.message || "Unknown error");
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -116,9 +137,23 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
                 </div>
               )}
 
+              {configStatus && !configStatus.stripeConfigured && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                  <p className="font-bold mb-1">⚠️ Stripe Not Configured</p>
+                  <p>Please add <strong>STRIPE_SECRET_KEY</strong> to your Environment Variables in AI Studio settings.</p>
+                </div>
+              )}
+
+              {configStatus && configStatus.stripeConfigured && !configStatus.stripeKeyValid && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs">
+                  <p className="font-bold mb-1">❌ Invalid API Key Type</p>
+                  <p>The key you provided starts with <code>mk_</code>. Please use a <strong>Secret Key</strong> starting with <code>sk_test_</code> or <code>sk_live_</code>.</p>
+                </div>
+              )}
+
               <button
                 onClick={handleDonate}
-                disabled={loading || amount <= 0}
+                disabled={loading || amount <= 0 || (configStatus !== null && !configStatus.stripeConfigured)}
                 className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading ? (
@@ -126,6 +161,8 @@ export default function DonationModal({ isOpen, onClose }: DonationModalProps) {
                     <Loader2 className="animate-spin" size={18} />
                     Processing...
                   </>
+                ) : !configStatus?.stripeConfigured ? (
+                  "Setup Required"
                 ) : (
                   <>
                     Donate Now

@@ -75,8 +75,8 @@ export default function TrackDetailsModal({ isOpen, onClose, station, metadata }
           contents: prompt,
         });
         setInsight(response.text || "");
-      } catch (error) {
-        console.error("AI Insight error:", error);
+      } catch (error: any) {
+        console.error("AI Insight error:", error.message || "Unknown error");
         setInsight("We're currently experiencing the divine presence through music. Stay tuned for more uplifting content.");
       } finally {
         setLoading(false);
@@ -120,9 +120,16 @@ export default function TrackDetailsModal({ isOpen, onClose, station, metadata }
                 <h2 className="text-2xl font-black text-white leading-tight">
                   {metadata ? metadata.title : station?.name}
                 </h2>
-                <p className="text-blue-200 text-sm font-medium">
-                  {metadata ? metadata.artist : station?.genre}
-                </p>
+                <div className="text-blue-200 text-sm font-medium flex items-center gap-1">
+                  {metadata ? (
+                    <>
+                      <span className="text-blue-300 italic opacity-80">by</span>
+                      {metadata.artist}
+                    </>
+                  ) : (
+                    station?.genre
+                  )}
+                </div>
               </div>
             </div>
 
@@ -134,6 +141,25 @@ export default function TrackDetailsModal({ isOpen, onClose, station, metadata }
               >
                 <X size={20} />
               </button>
+
+              <div className="mb-8">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Now Playing</h3>
+                <div className="space-y-1">
+                  <h2 className="text-3xl font-black text-[#003366] leading-tight">
+                    {metadata ? metadata.title : station?.name}
+                  </h2>
+                  <div className="flex items-center gap-2 text-blue-600 font-bold">
+                    {metadata ? (
+                      <>
+                        <span className="text-slate-400 font-medium italic text-sm">by</span>
+                        <span className="text-lg">{metadata.artist}</span>
+                      </>
+                    ) : (
+                      <span className="text-lg">{station?.genre}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               <div className="mb-8">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Current Program</h3>

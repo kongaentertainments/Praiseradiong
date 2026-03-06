@@ -5,26 +5,69 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
 
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-
 async function startServer() {
   const app = express();
   app.use(express.json());
   const server = createServer(app);
-  const wss = new WebSocketServer({ server });
+  const wss = new WebSocketServer({ 
+    noServer: true, // We will handle the upgrade manually
+    perMessageDeflate: false 
+  });
   const PORT = 3000;
+
+  // Log all upgrade requests
+  server.on('upgrade', (request, socket, head) => {
+    const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
+    console.log(`[WS-UPGRADE] Request for ${pathname} from ${request.socket.remoteAddress}`);
+    
+    if (pathname === '/ws') {
+      console.log(`[WS-UPGRADE] Handling /ws upgrade`);
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else {
+      // Let other upgrades (like Vite) pass through
+      console.log(`[WS-UPGRADE] Passing through: ${pathname}`);
+    }
+  });
+
+  // Config Status Check
+  app.get("/api/config-status", (req, res) => {
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    res.json({
+      stripeConfigured: !!stripeKey,
+      stripeKeyValid: stripeKey ? (stripeKey.startsWith('sk_test_') || stripeKey.startsWith('sk_live_')) : false
+    });
+  });
+
+  // WebSocket URL endpoint
+  app.get("/api/ws-url", (req, res) => {
+    // Use APP_URL if available, otherwise fallback to request host
+    const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
+    const wsUrl = appUrl.replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
+    res.json({ url: wsUrl });
+  });
 
   // Stripe Checkout Session
   app.post("/api/create-checkout-session", async (req, res) => {
-    if (!stripe) {
-      return res.status(500).json({ error: "Stripe is not configured" });
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    
+    if (!stripeKey) {
+      console.error("Stripe Error: STRIPE_SECRET_KEY is missing from environment variables.");
+      return res.status(500).json({ 
+        error: "Stripe is not configured. Please add a valid STRIPE_SECRET_KEY (starting with sk_test_ or sk_live_) to your environment variables in the AI Studio settings." 
+      });
     }
 
+    const stripeInstance = new Stripe(stripeKey);
     const { amount } = req.body;
-    const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+    // Use APP_URL if available, otherwise fallback to origin or host
+    const appUrl = process.env.APP_URL || req.headers.origin || `https://${req.headers.host}`;
 
     try {
-      const session = await stripe.checkout.sessions.create({
+      console.log(`[STRIPE] Initiating session creation. Amount: ${amount}, AppURL: ${appUrl}`);
+      
+      const session = await stripeInstance.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
           {
@@ -34,19 +77,27 @@ async function startServer() {
                 name: "Donation to PraiseRadioNG",
                 description: "Thank you for supporting our ministry!",
               },
-              unit_amount: amount * 100, // Amount in cents
+              unit_amount: Math.round(amount * 100), // Amount in cents, must be integer
             },
             quantity: 1,
           },
         ],
         mode: "payment",
-        success_url: `${appUrl}?donation=success`,
-        cancel_url: `${appUrl}?donation=cancel`,
+        success_url: `${appUrl.replace(/\/$/, "")}/?donation=success`,
+        cancel_url: `${appUrl.replace(/\/$/, "")}/?donation=cancel`,
       });
 
+      console.log(`[STRIPE] Session created successfully. ID: ${session.id}, URL: ${session.url?.substring(0, 30)}...`);
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[STRIPE] Error creating session:", error.message || error);
+      
+      let clientMessage = error.message;
+      if (error.type === 'StripeAuthenticationError') {
+        clientMessage = "Invalid Stripe API Key. Please ensure your STRIPE_SECRET_KEY starts with 'sk_test_' or 'sk_live_'.";
+      }
+      
+      res.status(500).json({ error: clientMessage });
     }
   });
 
@@ -106,12 +157,21 @@ async function startServer() {
     });
   }
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws: any, req) => {
+    const ip = req.socket.remoteAddress;
+    console.log(`New WebSocket connection from ${ip}`);
+    
     let currentStationId: string | null = null;
+    ws.isAlive = true;
+
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
 
     ws.on("message", (message) => {
       try {
         const data = JSON.parse(message.toString());
+        console.log(`WS message received: ${data.type} from ${ip}`);
         
         if (data.type === "join") {
           const { stationId } = data;
@@ -139,8 +199,8 @@ async function startServer() {
             }));
           }
         }
-      } catch (e) {
-        console.error("WS error:", e);
+      } catch (e: any) {
+        console.error("WS message error:", e.message || "Unknown error");
       }
     });
 
@@ -151,19 +211,33 @@ async function startServer() {
       }
     });
 
+    ws.on("error", (error: any) => {
+      console.error("WS socket error:", error.message || "Unknown error");
+    });
+
     function broadcastCount(stationId: string) {
       const count = stationListeners.get(stationId)?.size || 0;
       const payload = JSON.stringify({ type: "count", stationId, count });
       
-      // Broadcast to all clients interested in this station
-      // For simplicity, we can broadcast to everyone or just those in the "room"
-      // Let's broadcast to everyone so they see updates in the list too if we wanted
       wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(payload);
         }
       });
     }
+  });
+
+  // Heartbeat interval
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws: any) => {
+      if (ws.isAlive === false) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(interval);
   });
 
   // Vite middleware for development

@@ -26,13 +26,13 @@ import {
 } from "lucide-react";
 import { STATIONS } from "./constants";
 import { RadioStation, PlayerState } from "./types";
-import Visualizer from "./components/Visualizer";
 import AIHost from "./components/AIHost";
 import RequestModal from "./components/RequestModal";
 import ShareModal from "./components/ShareModal";
 import ProgramSchedule from "./components/ProgramSchedule";
 import TrackDetailsModal from "./components/TrackDetailsModal";
 import DonationModal from "./components/DonationModal";
+import Visualizer from "./components/Visualizer";
 import { cn } from "./lib/utils";
 
 export default function App() {
@@ -48,6 +48,7 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
   const [metadata, setMetadata] = useState<{ artist: string; title: string } | null>(null);
@@ -62,53 +63,102 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const donation = urlParams.get("donation");
     if (donation === "success") {
-      alert("Thank you for your generous donation! Your support means the world to us.");
+      setNotification({ message: "Thank you for your generous donation! Your support means the world to us.", type: "success" });
       // Clear the URL parameter
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (donation === "cancel") {
-      alert("Donation cancelled. If you have any questions, please feel free to contact us.");
+      setNotification({ message: "Donation cancelled. If you have any questions, please feel free to contact us.", type: "info" });
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
   useEffect(() => {
-    try {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${protocol}//${window.location.host}`);
-      wsRef.current = ws;
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
-      ws.onmessage = (event) => {
+  useEffect(() => {
+    let reconnectTimeout: NodeJS.Timeout;
+    let isComponentMounted = true;
+
+    const connectWebSocket = async () => {
+      if (!isComponentMounted) return;
+
+      try {
+        // Fetch the correct WS URL from the server
+        let wsUrl = "";
         try {
-          const data = JSON.parse(event.data);
-          if (data.type === "count" && data.stationId === state.currentStation?.id) {
-            setListenerCount(data.count);
-          } else if (data.type === "metadata" && data.stationId === state.currentStation?.id) {
-            setMetadata(data.metadata);
+          const response = await fetch("/api/ws-url");
+          if (response.ok) {
+            const data = await response.json();
+            wsUrl = data.url;
           }
         } catch (e) {
-          console.error("WS message parse error:", e);
+          console.warn("Failed to fetch WS URL from API, falling back to window.location");
         }
-      };
 
-      ws.onopen = () => {
-        console.log("WebSocket connected");
-        if (state.currentStation) {
-          ws.send(JSON.stringify({ type: "join", stationId: state.currentStation.id }));
+        if (!wsUrl) {
+          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+          wsUrl = `${protocol}//${window.location.host}/ws`;
         }
-      };
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-      };
+        console.log(`Attempting WebSocket connection to: ${wsUrl}`);
+        
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-      return () => {
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-          ws.close();
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "count" && data.stationId === state.currentStation?.id) {
+              setListenerCount(data.count);
+            } else if (data.type === "metadata" && data.stationId === state.currentStation?.id) {
+              setMetadata(data.metadata);
+            }
+          } catch (e: any) {
+            console.error("WS message parse error:", e.message);
+          }
+        };
+
+        ws.onopen = () => {
+          console.log("WebSocket connected successfully");
+          if (state.currentStation) {
+            ws.send(JSON.stringify({ type: "join", stationId: state.currentStation.id }));
+          }
+        };
+
+        ws.onclose = (event) => {
+          if (isComponentMounted) {
+            console.log(`WebSocket closed (code: ${event.code}, reason: ${event.reason || "none"}). Retrying in 5s...`);
+            reconnectTimeout = setTimeout(connectWebSocket, 5000);
+          }
+        };
+
+        ws.onerror = (error: any) => {
+          // Browser WebSocket errors are often opaque for security
+          console.error("WebSocket connection error. This may be due to proxy settings, server availability, or SSL issues.", error);
+          // Don't set state or alert here to avoid spamming the user, just log
+        };
+
+      } catch (e: any) {
+        console.error("WebSocket initialization failed:", e.message);
+        if (isComponentMounted) {
+          reconnectTimeout = setTimeout(connectWebSocket, 5000);
         }
-      };
-    } catch (e) {
-      console.error("WebSocket initialization failed:", e);
-    }
+      }
+    };
+
+    connectWebSocket();
+
+    return () => {
+      isComponentMounted = false;
+      clearTimeout(reconnectTimeout);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -139,7 +189,7 @@ export default function App() {
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           if (error.name === 'AbortError') return;
-          console.error("Playback error:", error);
+          console.error("Playback error:", error.message || "Unknown error");
           setState(prev => ({ ...prev, isPlaying: false }));
         });
       }
@@ -159,7 +209,7 @@ export default function App() {
     if (audioRef.current) {
       audioRef.current.load();
       if (state.isPlaying) {
-        audioRef.current.play().catch(err => console.error("Refresh play failed:", err));
+        audioRef.current.play().catch(err => console.error("Refresh play failed:", err.message));
       }
     }
   };
@@ -190,6 +240,7 @@ export default function App() {
         ref={audioRef} 
         src={state.currentStation?.url} 
         preload="none"
+        crossOrigin="anonymous"
         onPlay={() => {
           setState(prev => ({ ...prev, isPlaying: true }));
           setIsBuffering(false);
@@ -198,17 +249,28 @@ export default function App() {
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onCanPlay={() => setIsBuffering(false)}
-        onError={(e) => {
-          console.error("Audio error:", e);
+        onError={() => {
+          const error = audioRef.current?.error;
+          let errorMessage = "Unknown audio error";
+          if (error) {
+            switch (error.code) {
+              case 1: errorMessage = "Fetching process aborted by user"; break;
+              case 2: errorMessage = "Network error while fetching audio"; break;
+              case 3: errorMessage = "Audio decoding failed"; break;
+              case 4: errorMessage = "Audio source not supported or stream unavailable"; break;
+            }
+          }
+          console.error(`Audio error: ${errorMessage} (Code: ${error?.code})`);
           setIsBuffering(false);
           // If it's playing and errors, try to reload
           if (state.isPlaying) {
             setTimeout(() => {
               if (audioRef.current) {
+                console.log("Attempting to recover from audio error...");
                 audioRef.current.load();
-                audioRef.current.play().catch(err => console.error("Retry failed:", err));
+                audioRef.current.play().catch(err => console.error("Recovery retry failed:", err.message));
               }
-            }, 2000);
+            }, 3000);
           }
         }}
         onStalled={() => {
@@ -220,7 +282,7 @@ export default function App() {
               if (state.isPlaying && audioRef.current && audioRef.current.readyState < 3) {
                 console.log("Nudging stalled audio...");
                 audioRef.current.load();
-                audioRef.current.play().catch(err => console.error("Nudge failed:", err));
+                audioRef.current.play().catch(err => console.error("Nudge failed:", err.message));
               }
             }, 3000);
           }
@@ -229,7 +291,7 @@ export default function App() {
           console.log("Audio ended");
           if (state.isPlaying) {
             audioRef.current?.load();
-            audioRef.current?.play().catch(err => console.error("Restart failed:", err));
+            audioRef.current?.play().catch(err => console.error("Restart failed:", err.message));
           }
         }}
       />
@@ -807,6 +869,31 @@ export default function App() {
         isOpen={isDonationModalOpen}
         onClose={() => setIsDonationModalOpen(false)}
       />
+
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={cn(
+              "fixed bottom-24 left-1/2 -translate-x-1/2 z-[150] px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 min-w-[320px] max-w-[90vw]",
+              notification.type === "success" ? "bg-emerald-600 text-white" : "bg-[#003366] text-white"
+            )}
+          >
+            <div className="flex-1 text-sm font-medium">
+              {notification.message}
+            </div>
+            <button 
+              onClick={() => setNotification(null)}
+              className="p-1 hover:bg-white/20 rounded-full transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

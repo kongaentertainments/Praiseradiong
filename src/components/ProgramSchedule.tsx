@@ -9,7 +9,8 @@ export default function ProgramSchedule() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    // Update every second to ensure the minute flip is accurate and the UI feels responsive
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -31,11 +32,20 @@ export default function ProgramSchedule() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-xl md:text-2xl font-black text-[#003366] uppercase tracking-tight">Program Schedule</h2>
-        <div className="flex items-center self-start sm:self-auto gap-2 px-3 py-1.5 bg-blue-50 rounded-full border border-blue-100 shadow-sm">
-          <Clock size={14} className="text-blue-600" />
-          <span className="text-[10px] md:text-xs font-bold text-blue-800 uppercase tracking-widest">
-            Live Now: {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+        <div className="flex items-center self-start sm:self-auto gap-3 px-4 py-2 bg-white rounded-full border border-blue-100 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-[10px] md:text-xs font-black text-blue-900 uppercase tracking-widest">
+              Live Now
+            </span>
+          </div>
+          <div className="w-px h-3 bg-blue-100" />
+          <div className="flex items-center gap-1.5">
+            <Clock size={14} className="text-blue-600" />
+            <span className="text-[10px] md:text-xs font-bold text-blue-800 tabular-nums">
+              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+            </span>
+          </div>
         </div>
       </div>
 

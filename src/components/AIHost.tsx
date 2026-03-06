@@ -33,8 +33,8 @@ export default function AIHost({ station, metadata }: { station: RadioStation | 
           contents: prompt,
         });
         setInsight(response.text || "");
-      } catch (error) {
-        console.error("AI Host error:", error);
+      } catch (error: any) {
+        console.error("AI Host error:", error.message || "Unknown error");
         setInsight("Enjoy the vibes on PraiseRadioNG!");
       } finally {
         setLoading(false);
