@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
+import fs from "fs/promises";
 
 async function startServer() {
   const app = express();
@@ -36,8 +37,53 @@ async function startServer() {
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     res.json({
       stripeConfigured: !!stripeKey,
-      stripeKeyValid: stripeKey ? (stripeKey.startsWith('sk_test_') || stripeKey.startsWith('sk_live_')) : false
+      stripeKeyValid: stripeKey ? (stripeKey.startsWith('sk_test_') || stripeKey.startsWith('sk_live_')) : false,
+      adminConfigured: !!process.env.ADMIN_PASSWORD
     });
+  });
+
+  // Content API
+  app.get("/api/content", async (req, res) => {
+    try {
+      const data = await fs.readFile(path.join(process.cwd(), "data.json"), "utf-8");
+      res.json(JSON.parse(data));
+    } catch (e) {
+      res.status(500).json({ error: "Failed to load content" });
+    }
+  });
+
+  // Admin Login
+  app.post("/api/admin/login", (req, res) => {
+    const { password } = req.body;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminPassword) {
+      return res.status(500).json({ error: "Admin password not configured in environment variables." });
+    }
+
+    if (password === adminPassword) {
+      // In a real app, we'd use a JWT or session. For this demo, we'll just return a success.
+      res.json({ success: true, token: "demo-admin-token" });
+    } else {
+      res.status(401).json({ error: "Invalid password" });
+    }
+  });
+
+  // Update Content (Admin Only)
+  app.post("/api/admin/update-content", async (req, res) => {
+    const { token, content } = req.body;
+    
+    // Simple token check for demo
+    if (token !== "demo-admin-token") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      await fs.writeFile(path.join(process.cwd(), "data.json"), JSON.stringify(content, null, 2));
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to save content" });
+    }
   });
 
   // WebSocket URL endpoint

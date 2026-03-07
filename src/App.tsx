@@ -32,11 +32,14 @@ import ShareModal from "./components/ShareModal";
 import ProgramSchedule from "./components/ProgramSchedule";
 import TrackDetailsModal from "./components/TrackDetailsModal";
 import DonationModal from "./components/DonationModal";
+import AdminPanel from "./components/AdminPanel";
+import StationList from "./components/StationList";
 import Visualizer from "./components/Visualizer";
 import { cn } from "./lib/utils";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"home" | "schedule" | "about" | "contact" | "prayer" | "podcasts">("home");
+  const [dynamicContent, setDynamicContent] = useState<any>(null);
   const [state, setState] = useState<PlayerState>({
     currentStation: STATIONS[0],
     isPlaying: false,
@@ -48,6 +51,7 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDonationModalOpen, setIsDonationModalOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
@@ -78,6 +82,41 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  const fetchContent = async () => {
+    try {
+      const res = await fetch("/api/content");
+      if (res.ok) {
+        const data = await res.json();
+        setDynamicContent(data);
+        // Update current station if it's the default one
+        if (state.currentStation.id === STATIONS[0].id) {
+          setState(prev => ({ ...prev, currentStation: data.stations[0] }));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch dynamic content");
+    }
+  };
+
+  useEffect(() => {
+    fetchContent();
+  }, []);
+
+  const handleUpdateContent = async (newContent: any) => {
+    const token = localStorage.getItem("admin-token");
+    const res = await fetch("/api/admin/update-content", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, content: newContent })
+    });
+    if (res.ok) {
+      setDynamicContent(newContent);
+    } else {
+      const data = await res.json();
+      throw new Error(data.error || "Failed to update content");
+    }
+  };
 
   useEffect(() => {
     let reconnectTimeout: NodeJS.Timeout;
@@ -464,7 +503,24 @@ export default function App() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar pb-32">
+        <div className="flex-1 flex overflow-hidden">
+          {/* Desktop Sidebar */}
+          <aside className="hidden lg:flex w-80 flex-col border-r border-slate-200 bg-white">
+            <div className="p-6 border-b border-slate-100">
+              <h2 className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400">Radio Stations</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <StationList 
+                stations={dynamicContent?.stations || STATIONS} 
+                currentStation={state.currentStation}
+                onSelect={handleStationSelect}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+              />
+            </div>
+          </aside>
+
+          <main className="flex-1 overflow-y-auto custom-scrollbar pb-32">
           <AnimatePresence mode="wait">
             {activeTab === "home" ? (
               <motion.div
@@ -522,8 +578,10 @@ export default function App() {
                         </div>
                         <h3 className="font-bold text-lg text-[#003366]">Daily Verse</h3>
                       </div>
-                      <p className="text-slate-600 italic mb-6 leading-relaxed">"For I know the plans I have for you," declares the Lord, "plans to prosper you and not to harm you, plans to give you hope and a future."</p>
-                      <p className="text-sm font-bold text-blue-600">— Jeremiah 29:11</p>
+                      <p className="text-slate-600 italic mb-6 leading-relaxed">
+                        {dynamicContent?.verse?.text || "\"For I know the plans I have for you,\" declares the Lord, \"plans to prosper you and not to harm you, plans to give you hope and a future.\""}
+                      </p>
+                      <p className="text-sm font-bold text-blue-600">— {dynamicContent?.verse?.reference || "Jeremiah 29:11"}</p>
                     </div>
 
                     {/* Pray With Us Card */}
@@ -563,7 +621,7 @@ export default function App() {
                 transition={{ duration: 0.3 }}
                 className="p-8 lg:p-12"
               >
-                <ProgramSchedule />
+                <ProgramSchedule schedule={dynamicContent?.schedule} />
               </motion.div>
             ) : activeTab === "podcasts" ? (
               <motion.div
@@ -648,10 +706,10 @@ export default function App() {
                 className="p-8 lg:p-12 max-w-4xl mx-auto"
               >
                 <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200">
-                  <h2 className="text-4xl font-black text-[#003366] mb-8">About PraiseRadioNG</h2>
+                  <h2 className="text-4xl font-black text-[#003366] mb-8">{dynamicContent?.about?.title || "About PraiseRadioNG"}</h2>
                   <div className="prose prose-slate max-w-none">
                     <p className="text-lg text-slate-600 leading-relaxed mb-6">
-                      PraiseRadioNG is your premium destination for faith-based content, uplifting music, and community connection. Our mission is to spread hope and encouragement through the power of sound and digital innovation.
+                      {dynamicContent?.about?.content || "PraiseRadioNG is your premium destination for faith-based content, uplifting music, and community connection. Our mission is to spread hope and encouragement through the power of sound and digital innovation."}
                     </p>
                     <div className="grid md:grid-cols-2 gap-8 my-12">
                       <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100">
@@ -726,6 +784,7 @@ export default function App() {
           </AnimatePresence>
         </main>
       </div>
+    </div>
 
       {/* Persistent Player Bar */}
       <footer className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] px-6 py-4">
@@ -854,6 +913,25 @@ export default function App() {
         onClose={() => setIsDonationModalOpen(false)}
         onSuccess={(msg) => setNotification({ type: "success", message: msg })}
       />
+
+      {dynamicContent && (
+        <AdminPanel 
+          isOpen={isAdminPanelOpen}
+          onClose={() => setIsAdminPanelOpen(false)}
+          content={dynamicContent}
+          onUpdate={handleUpdateContent}
+        />
+      )}
+
+      {/* Hidden Admin Trigger in Footer */}
+      <footer className="fixed bottom-0 left-0 right-0 z-[60] bg-white/80 backdrop-blur-md border-t border-slate-100 py-1 px-4 flex justify-center">
+        <button 
+          onClick={() => setIsAdminPanelOpen(true)}
+          className="text-[8px] text-slate-300 hover:text-slate-500 transition-colors uppercase font-bold tracking-widest"
+        >
+          Admin Access
+        </button>
+      </footer>
 
       {/* Notification Toast */}
       <AnimatePresence>

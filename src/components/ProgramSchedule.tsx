@@ -5,7 +5,11 @@ import { Clock, User, Info } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useEffect, useState } from "react";
 
-export default function ProgramSchedule() {
+interface ProgramScheduleProps {
+  schedule?: Program[];
+}
+
+export default function ProgramSchedule({ schedule = SCHEDULE }: ProgramScheduleProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -50,7 +54,7 @@ export default function ProgramSchedule() {
       </div>
 
       <div className="grid gap-4">
-        {SCHEDULE.map((program, index) => {
+        {schedule.map((program, index) => {
           const isLive = isCurrentProgram(program);
           return (
             <motion.div
