@@ -141,32 +141,13 @@ export default function DonationModal({ isOpen, onClose, onSuccess }: DonationMo
               )}
 
               {configStatus && !configStatus.stripeConfigured && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
-                    <p className="font-bold mb-1">⚠️ Stripe Not Configured</p>
-                    <p className="mb-2">To enable automated donations, add <strong>STRIPE_SECRET_KEY</strong> to your environment variables.</p>
-                    <ul className="list-disc list-inside space-y-1 opacity-80">
-                      <li>On Netlify: Site Settings &gt; Environment variables</li>
-                      <li>In AI Studio: Settings &gt; Environment Variables</li>
-                    </ul>
-                  </div>
-
-                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl">
-                    <h3 className="text-sm font-bold text-[#003366] mb-3 flex items-center gap-2">
-                      <Radio size={16} className="text-blue-600" />
-                      Other Ways to Support
-                    </h3>
-                    <p className="text-xs text-slate-500 mb-4">You can still support our ministry through direct contact or other platforms.</p>
-                    <div className="space-y-2">
-                      <a 
-                        href="mailto:hello@praiseradio.ng?subject=Donation Inquiry" 
-                        className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-[#003366] hover:border-blue-300 transition-all"
-                      >
-                        Contact for Bank Details
-                        <ChevronRight size={14} />
-                      </a>
-                    </div>
-                  </div>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs">
+                  <p className="font-bold mb-1">⚠️ Stripe Not Configured</p>
+                  <p className="mb-2">To enable automated donations, add <strong>STRIPE_SECRET_KEY</strong> to your environment variables.</p>
+                  <ul className="list-disc list-inside space-y-1 opacity-80">
+                    <li>On Netlify: Site Settings &gt; Environment variables</li>
+                    <li>In AI Studio: Settings &gt; Environment Variables</li>
+                  </ul>
                 </div>
               )}
 
@@ -178,52 +159,48 @@ export default function DonationModal({ isOpen, onClose, onSuccess }: DonationMo
               )}
 
               <div className="space-y-3">
-                <button
-                  onClick={handleDonate}
-                  disabled={loading || amount <= 0 || (configStatus !== null && !configStatus.stripeConfigured)}
-                  className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      Processing...
-                    </>
-                  ) : !configStatus?.stripeConfigured ? (
-                    "Setup Required"
-                  ) : (
-                    <>
-                      Donate Now
-                      <Heart size={16} />
-                    </>
-                  )}
-                </button>
-
-                {configStatus && !configStatus.stripeConfigured && (
-                  <>
-                    <a
-                      href={`mailto:hello@praiseradio.ng?subject=Donation of $${amount}&body=I would like to donate $${amount} to PraiseRadioNG. Please provide bank details.`}
-                      className="w-full py-4 bg-slate-100 text-[#003366] rounded-2xl font-bold uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-sm"
-                    >
-                      Contact for Details
-                      <ChevronRight size={16} />
-                    </a>
-                    
-                    {isDev && (
-                      <button
-                        onClick={() => {
-                          setLoading(true);
-                          setTimeout(() => {
-                            setLoading(false);
-                            onSuccess?.(`Thank you for your simulated donation of $${amount}!`);
-                            onClose();
-                          }, 1000);
-                        }}
-                        className="w-full py-2 text-[10px] text-slate-400 hover:text-blue-500 transition-colors uppercase font-bold tracking-widest"
-                      >
-                        [Dev] Simulate Success
-                      </button>
+                {!configStatus?.stripeConfigured ? (
+                  <a
+                    href={`mailto:hello@praiseradio.ng?subject=Donation of $${amount}&body=I would like to donate $${amount} to PraiseRadioNG. Please provide bank details.`}
+                    className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all flex items-center justify-center gap-2"
+                  >
+                    Contact to Donate
+                    <ChevronRight size={16} />
+                  </a>
+                ) : (
+                  <button
+                    onClick={handleDonate}
+                    disabled={loading || amount <= 0}
+                    className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        Donate Now
+                        <Heart size={16} />
+                      </>
                     )}
-                  </>
+                  </button>
+                )}
+
+                {configStatus && !configStatus.stripeConfigured && isDev && (
+                  <button
+                    onClick={() => {
+                      setLoading(true);
+                      setTimeout(() => {
+                        setLoading(false);
+                        onSuccess?.(`Thank you for your simulated donation of $${amount}!`);
+                        onClose();
+                      }, 1000);
+                    }}
+                    className="w-full py-2 text-[10px] text-slate-400 hover:text-blue-500 transition-colors uppercase font-bold tracking-widest"
+                  >
+                    [Dev] Simulate Success
+                  </button>
                 )}
               </div>
               
