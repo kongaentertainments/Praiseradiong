@@ -181,6 +181,11 @@ export default function App() {
     if (!audioRef.current) return;
 
     const audio = audioRef.current;
+    
+    // If the URL has changed, we must call load() to reset the stream to the live edge
+    if (audio.src !== state.currentStation?.url) {
+      audio.load();
+    }
 
     if (state.isPlaying) {
       // For live streams, it's often better to reload to get to the live edge
@@ -239,8 +244,7 @@ export default function App() {
       <audio 
         ref={audioRef} 
         src={state.currentStation?.url} 
-        preload="none"
-        crossOrigin="anonymous"
+        preload="auto"
         onPlay={() => {
           setState(prev => ({ ...prev, isPlaying: true }));
           setIsBuffering(false);
