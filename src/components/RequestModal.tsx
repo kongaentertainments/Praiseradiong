@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "motion/react";
-import { X, Send, Music, User, MessageSquare } from "lucide-react";
+import { X, Send, Heart, User, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import { cn } from "../lib/utils";
 
@@ -43,8 +43,8 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
             <div className="p-8">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-black tracking-tight text-[#003366]">Request a Track</h2>
-                  <p className="text-sm text-slate-400">Tell us what you want to hear next.</p>
+                  <h2 className="text-2xl font-black tracking-tight text-[#003366]">Submit a Prayer Request</h2>
+                  <p className="text-sm text-slate-400">Share your prayer points with our community.</p>
                 </div>
                 <button 
                   onClick={onClose}
@@ -57,37 +57,38 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
               {!submitted ? (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Song Title</label>
-                    <div className="relative">
-                      <Music className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                      <input 
-                        required
-                        type="text" 
-                        placeholder="e.g. Moonlight Sonata"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-500 transition-colors text-slate-800"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Artist Name</label>
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Your Name</label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                       <input 
                         required
                         type="text" 
-                        placeholder="e.g. Beethoven"
+                        placeholder="e.g. John Doe"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-500 transition-colors text-slate-800"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Message (Optional)</label>
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Prayer Topic</label>
+                    <div className="relative">
+                      <Heart className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                      <input 
+                        required
+                        type="text" 
+                        placeholder="e.g. Family, Health, Career"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-500 transition-colors text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] uppercase font-bold tracking-widest text-blue-600">Your Prayer Request</label>
                     <div className="relative">
                       <MessageSquare className="absolute left-4 top-4 text-slate-300" size={18} />
                       <textarea 
-                        placeholder="Any special dedication?"
+                        required
+                        placeholder="How can we pray for you?"
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 h-24 focus:outline-none focus:border-blue-500 transition-colors resize-none text-slate-800"
                       />
                     </div>
@@ -106,7 +107,7 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
                     ) : (
                       <>
                         <Send size={18} />
-                        Send Request
+                        Submit Request
                       </>
                     )}
                   </button>
@@ -118,11 +119,11 @@ export default function RequestModal({ isOpen, onClose }: RequestModalProps) {
                   className="py-12 text-center space-y-4"
                 >
                   <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Send className="text-blue-600" size={32} />
+                    <Heart className="text-blue-600" size={32} fill="currentColor" />
                   </div>
-                  <h3 className="text-xl font-bold text-[#003366]">Request Sent!</h3>
+                  <h3 className="text-xl font-bold text-[#003366]">Request Submitted!</h3>
                   <p className="text-slate-500 text-sm max-w-[240px] mx-auto">
-                    Our curators have received your request. Stay tuned to the frequency!
+                    Our prayer team has received your request. We are standing in faith with you.
                   </p>
                   <button 
                     onClick={onClose}

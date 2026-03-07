@@ -391,8 +391,8 @@ export default function App() {
               onClick={() => setIsRequestModalOpen(true)}
               className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-[#0056b3] hover:bg-[#004494] text-white rounded-full transition-all text-xs font-bold uppercase tracking-widest shadow-md"
             >
-              <Music size={14} />
-              Request Track
+              <Heart size={14} />
+              Prayer Request
             </button>
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -453,8 +453,8 @@ export default function App() {
               }}
               className="w-full flex items-center justify-center gap-2 py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest text-xs shadow-lg"
             >
-              <Music size={14} />
-              Request Track
+              <Heart size={14} />
+              Prayer Request
             </button>
           </div>
         </aside>
@@ -535,7 +535,7 @@ export default function App() {
                       </div>
                       <p className="text-slate-600 mb-6 leading-relaxed">Need prayer? Our community is here for you. Submit your requests and join us in prayer for others.</p>
                       <div className="flex items-center gap-2 text-sm font-bold text-blue-600">
-                        Submit a Request
+                        Submit a Prayer Request
                         <ChevronRight size={16} />
                       </div>
                     </div>
@@ -614,7 +614,7 @@ export default function App() {
                         onClick={() => setIsRequestModalOpen(true)}
                         className="w-full py-4 bg-[#0056b3] text-white rounded-2xl font-bold uppercase tracking-widest shadow-lg hover:bg-[#004494] transition-colors"
                       >
-                        Open Request Form
+                        Submit Prayer Request
                       </button>
                     </div>
                     
