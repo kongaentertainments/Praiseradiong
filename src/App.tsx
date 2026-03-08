@@ -54,6 +54,7 @@ export default function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isBuffering, setIsBuffering] = useState(false);
+  const wakeLockRef = useRef<any>(null);
   const [listenerCount, setListenerCount] = useState(0);
   const [metadata, setMetadata] = useState<{ artist: string; title: string } | null>(null);
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -205,6 +206,73 @@ export default function App() {
       wsRef.current.send(JSON.stringify({ type: "join", stationId: state.currentStation.id }));
     }
   }, [state.currentStation]);
+
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && state.isPlaying) {
+        try {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          console.log('Wake Lock is active');
+        } catch (err: any) {
+          console.warn(`${err.name}, ${err.message}`);
+        }
+      } else if (wakeLockRef.current && !state.isPlaying) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Wake Lock released');
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && state.isPlaying) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    requestWakeLock();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+      }
+    };
+  }, [state.isPlaying]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator && state.currentStation) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: metadata?.title || state.currentStation.name,
+        artist: metadata?.artist || "PraiseRadioNG",
+        album: state.currentStation.genre,
+        artwork: [
+          { src: state.currentStation.cover, sizes: '96x96', type: 'image/png' },
+          { src: state.currentStation.cover, sizes: '128x128', type: 'image/png' },
+          { src: state.currentStation.cover, sizes: '192x192', type: 'image/png' },
+          { src: state.currentStation.cover, sizes: '256x256', type: 'image/png' },
+          { src: state.currentStation.cover, sizes: '384x384', type: 'image/png' },
+          { src: state.currentStation.cover, sizes: '512x512', type: 'image/png' },
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        setState(prev => ({ ...prev, isPlaying: true }));
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        setState(prev => ({ ...prev, isPlaying: false }));
+      });
+      navigator.mediaSession.setActionHandler('stop', () => {
+        setState(prev => ({ ...prev, isPlaying: false }));
+      });
+    }
+  }, [state.currentStation, metadata]);
+
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = state.isPlaying ? 'playing' : 'paused';
+    }
+  }, [state.isPlaying]);
 
   useEffect(() => {
     localStorage.setItem("praiseradio-favorites", JSON.stringify(favorites));
