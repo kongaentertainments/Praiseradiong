@@ -7,6 +7,7 @@ import Stripe from "stripe";
 import fs from "fs/promises";
 
 async function startServer() {
+  console.log(`[SERVER] Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
   const app = express();
   app.use(express.json());
   const server = createServer(app);
@@ -18,17 +19,23 @@ async function startServer() {
 
   // Log all upgrade requests
   server.on('upgrade', (request, socket, head) => {
-    const pathname = new URL(request.url || '', `http://${request.headers.host}`).pathname;
-    console.log(`[WS-UPGRADE] Request for ${pathname} from ${request.socket.remoteAddress}`);
-    
-    if (pathname === '/ws') {
-      console.log(`[WS-UPGRADE] Handling /ws upgrade`);
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    } else {
-      // Let other upgrades (like Vite) pass through
-      console.log(`[WS-UPGRADE] Passing through: ${pathname}`);
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      const pathname = url.pathname;
+      console.log(`[WS-UPGRADE] Request for ${pathname} from ${request.socket.remoteAddress}`);
+      
+      if (pathname === '/ws') {
+        console.log(`[WS-UPGRADE] Handling /ws upgrade`);
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      } else {
+        // Let other upgrades (like Vite) pass through
+        console.log(`[WS-UPGRADE] Passing through: ${pathname}`);
+      }
+    } catch (err) {
+      console.error('[WS-UPGRADE] Error during upgrade:', err);
+      socket.destroy();
     }
   });
 
@@ -156,37 +163,54 @@ async function startServer() {
 
   // Poll for metadata for the main station
   const pollMetadata = async () => {
+    if (typeof fetch === 'undefined') {
+      console.warn("[METADATA] fetch is not available in this Node.js version. Skipping metadata polling.");
+      return;
+    }
+    
     const stationId = "praiseradio-live";
     const mountId = "9xwv2tuzoqsuv"; // From the URL
     
     try {
-      // Zeno FM metadata endpoint
-      const response = await fetch(`https://api.zeno.fm/mounts/metadata/subscribe/${mountId}`);
+      // Use a timeout to avoid hanging on long-lived SSE streams
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`https://api.zeno.fm/mounts/metadata/subscribe/${mountId}`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
       if (response.ok) {
-        // This is actually an SSE endpoint, but we can try to get the first chunk or use a simpler one if it exists
-        // Let's try to find a simpler one or just use a timeout fetch
-        // Actually, Zeno FM has a public page we can scrape or a better API
-        // Let's try this one: https://api.zeno.fm/mounts/metadata/subscribe/9xwv2tuzoqsuv
-        // For now, let's use a mock or a simpler fetch if possible
-        // Actually, let's try to fetch it and see what we get
-        const text = await response.text();
-        // SSE format: data: {"title": "Artist - Song", ...}
-        const match = text.match(/data: (\{.*\})/);
-        if (match) {
-          const data = JSON.parse(match[1]);
-          if (data.streamTitle) {
-            const [artist, title] = data.streamTitle.split(" - ").map((s: string) => s.trim());
-            const metadata = { artist: artist || "PraiseRadioNG", title: title || "Live Stream" };
-            
-            if (JSON.stringify(stationMetadata.get(stationId)) !== JSON.stringify(metadata)) {
-              stationMetadata.set(stationId, metadata);
-              broadcastMetadata(stationId, metadata);
+        // We only want to read a small part of the stream to see if there's metadata
+        // Since it's an SSE stream, we can't just await response.text() if it's infinite
+        const reader = response.body?.getReader();
+        if (reader) {
+          const { value } = await reader.read();
+          const text = new TextDecoder().decode(value);
+          reader.cancel(); // Stop reading immediately
+
+          // SSE format: data: {"title": "Artist - Song", ...}
+          const match = text.match(/data: (\{.*\})/);
+          if (match) {
+            const data = JSON.parse(match[1]);
+            if (data.streamTitle) {
+              const [artist, title] = data.streamTitle.split(" - ").map((s: string) => s.trim());
+              const metadata = { artist: artist || "PraiseRadioNG", title: title || "Live Stream" };
+              
+              if (JSON.stringify(stationMetadata.get(stationId)) !== JSON.stringify(metadata)) {
+                stationMetadata.set(stationId, metadata);
+                broadcastMetadata(stationId, metadata);
+              }
             }
           }
         }
       }
-    } catch (e) {
-      console.error("Metadata fetch error:", e);
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        console.error("Metadata fetch error:", e.message || e);
+      }
     }
   };
 
@@ -287,22 +311,54 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  const isProd = process.env.NODE_ENV === "production";
+  console.log(`[SERVER] Environment: ${isProd ? 'Production' : 'Development'}`);
+
+  if (!isProd) {
+    try {
+      console.log("[SERVER] Initializing Vite middleware...");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      console.log("[SERVER] Vite middleware initialized.");
+    } catch (err) {
+      console.error("[SERVER] Failed to create Vite server:", err);
+    }
   } else {
-    app.use(express.static(path.join(process.cwd(), "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
-    });
+    const distPath = path.resolve(process.cwd(), "dist");
+    console.log(`[SERVER] Serving static files from: ${distPath}`);
+    
+    if (await fs.access(distPath).then(() => true).catch(() => false)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"), (err) => {
+          if (err) {
+            console.error("[SERVER] Error sending index.html:", err);
+            res.status(500).send("Error loading application. Please ensure the build is complete.");
+          }
+        });
+      });
+    } else {
+      console.error("[SERVER] dist directory not found! Static serving will fail.");
+      app.get("*", (req, res) => {
+        res.status(500).send("Application build not found. Please run build first.");
+      });
+    }
   }
+
+  // Global Error Handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Unhandled Server Error:", err);
+    res.status(500).json({ error: "Internal Server Error", message: err.message });
+  });
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error("CRITICAL: Failed to start server:", err);
+});
